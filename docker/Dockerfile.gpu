@@ -1,0 +1,48 @@
+# AIDP Video Forge - GPU Docker Image
+# FFmpeg with NVIDIA NVENC/CUDA support
+
+FROM nvidia/cuda:12.2.0-runtime-ubuntu22.04
+
+# Prevent interactive prompts
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    python3 \
+    python3-pip \
+    ffmpeg \
+    wget \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install FFmpeg with NVENC support (if needed, compile from source)
+# The nvidia/cuda base image + standard ffmpeg should have NVENC support
+
+# Verify NVENC availability
+RUN ffmpeg -hide_banner -encoders 2>/dev/null | grep nvenc || echo "NVENC not available in this build"
+
+# Set working directory
+WORKDIR /app
+
+# Copy requirements and install Python dependencies
+COPY requirements.txt .
+RUN pip3 install --no-cache-dir -r requirements.txt
+
+# Copy source code
+COPY src/ ./src/
+COPY scripts/ ./scripts/
+
+# Make scripts executable
+RUN chmod +x scripts/*.sh
+
+# Environment variables
+ENV NVIDIA_VISIBLE_DEVICES=all
+ENV NVIDIA_DRIVER_CAPABILITIES=compute,video,utility
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD python3 -c "import sys; sys.exit(0)"
+
+# Default command
+ENTRYPOINT ["python3", "src/forge.py"]
+CMD ["--help"]
